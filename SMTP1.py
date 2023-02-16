@@ -5,9 +5,32 @@ Date: February 21, 2023
 """
 
 import sys
-import os
+from enum import Enum
 
 debug = False
+
+"""
+Checklist
+
+- [x] Get port number from arguments
+- [ ] Establish and accept a connection with the client
+- [ ] Create a listening socket on the specified port number
+- [ ] Handshake
+    - Send a 220 code with text [server-hostname].cs.unc.edu
+    - Receive and recognize a HELO command with text [client-hostname].cs.unc.edu
+    - Send a 250 code with greeting text
+- [ ] Begin receiving SMTP commands
+- [ ] Upon QUIT command, respond to client with 221 [server-hostname] closing connection
+- [ ] Close socket to client and await connection from another client
+"""
+
+
+class State(Enum):
+    HELO = -1
+    MAIL = 0
+    RCPT = 1
+    RCPTDATA = 2
+    DATABODY = 3
 
 
 class SMTPParser:
@@ -19,7 +42,7 @@ class SMTPParser:
     def __init__(self):
         self.stream = iter([])  # iterator for stdin
         self.nextc = ""  # 1 character lookahead
-        self.state = 0  # 0 = expecting mail from , 1 = expecting rcpt to, 2 = expecting rcpt to or data, 3 = expecting data body
+        self.state = State.MAIL
         self.reverse_path_str = ""  # backward path
         self.get_reverse_path = False  # flag to insert to path_buffer
         self.forward_path_strs = list()  # set of unique forward paths
@@ -32,12 +55,14 @@ class SMTPParser:
 
     def main(self):
         self.__init__()
+        # TODO: replace stdin with socket in
+        # TODO: replace stdout with socket out
         for line in sys.stdin:
             print(line, end="")
             self.stream = iter(line)
             self.putc()
-            if self.state == 3:
-                # TODO: rewrite
+            if self.state == State.DATABODY:
+                # TODO: review with new forward file requirements
                 res = self.read_data()
                 if res is not None:
                     # found proper end of message
@@ -53,27 +78,26 @@ class SMTPParser:
                         print(self.code(250))
                         self.forward_path_strs = []
                         self.reverse_path_str = ""
-                        self.state = 0
+                        self.state = State.MAIL
             else:
+                # TODO: handle HELO and
                 res = self.recognize_cmd()
-                command = res[0]
-                states = res[1]
-                exit_code = res[2]
+                command, states, exit_code = res
 
                 if self.state not in states:
                     print(self.code(503))
-                    self.state = 0
+                    self.state = State.MAIL
                 else:
                     match command:
                         case "MAIL":
                             self.forward_path_strs = []
-                            self.state = 1
+                            self.state = State.RCPT
                         case "RCPT":
-                            self.state = 2
+                            self.state = State.RCPTDATA
                         case "DATA":
-                            self.state = 3
+                            self.state = State.DATABODY
                         case _:
-                            self.state = 0
+                            self.state = State.MAIL
                     print(exit_code)
         if self.reading_data:
             # reached EOF while still reading data
@@ -88,10 +112,15 @@ class SMTPParser:
             self.nextc = ""
 
     @staticmethod
-    def code(num: int) -> str:
+    def code(num: int, data: str = "") -> str:
         match num:
+            # TODO: maybe replace hostname input with field
+            case 220:
+                return f"220 {data}.cs.unc.edu"
+            case 221:
+                return f"221 {data} closing connection"
             case 250:
-                return "250 OK"
+                return f"250 {data}"
             case 354:
                 return "354 Start mail input; end with <CRLF>.<CRLF>"
             case 500:
@@ -145,15 +174,15 @@ class SMTPParser:
 
     def recognize_cmd(self) -> (list, str):  # returns tuple of (command, exit code)
         if self.consume_str("MAIL") and not self.whitespace() and self.consume_str("FROM:"):
-            return "MAIL", [0], self.mail_from_cmd()
+            return "MAIL", [State.MAIL], self.mail_from_cmd()
 
         if self.consume_str("RCPT") and not self.whitespace() and self.consume_str("TO:"):
-            return "RCPT", [1, 2], self.rcpt_to_cmd()
+            return "RCPT", [State.RCPT, State.RCPTDATA], self.rcpt_to_cmd()
 
         if self.consume_str("DATA") and not self.nullspace() and not self.crlf():
-            return "DATA", [2], self.data_cmd()
+            return "DATA", [State.RCPTDATA], self.data_cmd()
 
-        return "UNRECOGNIZED", [0, 1, 2], self.code(500)
+        return "UNRECOGNIZED", [State.MAIL, State.RCPT, State.RCPTDATA], self.code(500)
 
     def mail_from_cmd(self):
         # <mail-from-cmd> ::= "MAIL" <whitespace> "FROM:" <nullspace> <reverse-path> <nullspace> <CRLF>
@@ -337,22 +366,6 @@ class SMTPParser:
     def data_cmd(self):
         # <data-cmd> ::= "DATA" <nullspace> <CRLF>
         return self.code(354)
-
-
-"""
-Checklist
-
-- [x] Get port number from arguments
-- [ ] Establish and accept a connection with the client
-- [ ] Create a listening socket on the specified port number
-- [ ] Handshake
-    - Send a 220 code with text [server-hostname].cs.unc.edu
-    - Receive and recognize a HELO command with text [client-hostname].cs.unc.edu
-    - Send a 250 code with greeting text
-- [ ] Begin receiving SMTP commands
-- [ ] Upon QUIT command, respond to client with 221 [server-hostname] closing connection
-- [ ] Close socket to client and await connection from another client
-"""
 
 
 def main():
