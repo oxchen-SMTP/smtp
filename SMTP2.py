@@ -166,18 +166,10 @@ class PathParser:
 
     def name(self):
         # <name> ::= <letter> <let-dig-str>
-        if self.nextc in self.ALPHA:
-            self.putc()
-            if self.nextc in self.ALPHA or self.nextc in self.DIGIT:
-                self.putc()
-                while self.nextc in self.ALPHA or self.nextc in self.DIGIT:
-                    self.putc()
-                return ""
-        return "let-dig-str"
-        # if self.let_dig_str():
-        #     return "name"
-        #
-        # return ""
+        if self.let_dig_str():
+            return "name"
+
+        return ""
 
     def letter(self):
         # <letter> ::= any one of the 52 alphabetic characters A through Z in upper case and a through z in lower case
@@ -197,9 +189,8 @@ class PathParser:
 
     def let_dig(self):
         # <let-dig> ::= <letter> | <digit>
-        if self.letter() != "":
-            if self.digit() != "":
-                return "let-dig"
+        if self.letter() != "" and self.digit() != "":
+            return "let-dig"
         return ""
 
     def digit(self):
@@ -208,6 +199,72 @@ class PathParser:
             self.putc()
             return ""
         return "digit"
+
+    # def domain(self):
+    #     # <domain> ::= <element> | <element> "." <domain>
+    #     res = self.element()
+    #     if res != "":
+    #         return res
+    #
+    #     if self.nextc == ".":
+    #         self.consume(".")
+    #         return self.domain()  # this element is fine, next one also needs to be
+    #
+    #     return ""
+    #
+    # def element(self):
+    #     # <element> ::= <letter> | <name>
+    #     if self.letter() != "":
+    #         return "element"
+    #
+    #     self.name()
+    #
+    #     return ""
+    #
+    # def name(self):
+    #     # <name> ::= <letter> <let-dig-str>
+    #     if self.nextc in self.ALPHA:
+    #         self.putc()
+    #         if self.nextc in self.ALPHA or self.nextc in self.DIGIT:
+    #             self.putc()
+    #             while self.nextc in self.ALPHA or self.nextc in self.DIGIT:
+    #                 self.putc()
+    #             return ""
+    #     return "let-dig-str"
+    #     # if self.let_dig_str():
+    #     #     return "name"
+    #     #
+    #     # return ""
+    #
+    # def letter(self):
+    #     # <letter> ::= any one of the 52 alphabetic characters A through Z in upper case and a through z in lower case
+    #     if self.nextc in self.ALPHA:
+    #         self.putc()
+    #         return ""
+    #     return "letter"
+    #
+    # def let_dig_str(self):
+    #     # <let-dig-str> ::= <let-dig> | <let-dig> <let-dig-str>
+    #     if self.let_dig() != "":
+    #         return "let-dig-str"
+    #
+    #     self.let_dig_str()
+    #
+    #     return ""
+    #
+    # def let_dig(self):
+    #     # <let-dig> ::= <letter> | <digit>
+    #     if self.letter() != "":
+    #         if self.digit() != "":
+    #             return "let-dig"
+    #     return ""
+    #
+    # def digit(self):
+    #     # <digit> ::= any one of the ten digits 0 through 9
+    #     if self.nextc in self.DIGIT:
+    #         self.putc()
+    #         return ""
+    #     return "digit"
 
 
 class Client:
