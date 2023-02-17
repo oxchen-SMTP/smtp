@@ -220,7 +220,7 @@ class Client:
         self.cli_socket = socket(AF_INET, SOCK_STREAM)
 
     def send(self, cmd: str):
-        self.cli_socket.sendto(cmd.encode(), self.server)
+        self.cli_socket.send(cmd.encode())
 
     def main(self):
         msg_res = self.get_message()
@@ -318,7 +318,7 @@ class Client:
 
     def react_to_response(self, expected_code: int, next_state: State = State.QUIT) -> bool:
         try:
-            response, serv_addr = self.cli_socket.recvfrom(2048)
+            response, serv_addr = self.cli_socket.recv(1024)
         except OSError as e:
             print(f"Encountered a socket error: {e}")
             return False
