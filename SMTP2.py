@@ -217,8 +217,7 @@ class Client:
     def __init__(self, hostname, port):
         self.state = self.State.HELO
         self.server = (hostname, port)
-        with socket(AF_INET, SOCK_STREAM) as client_socket:
-            self.cli_socket = client_socket
+        self.cli_socket = socket(AF_INET, SOCK_STREAM)
 
     def send(self, cmd: str):
         self.cli_socket.sendto(cmd.encode(), self.server)
