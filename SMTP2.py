@@ -206,15 +206,13 @@ class Client:
         HELO = -1
         FROM = 0
         TO = 1
-        TOTAIL = 2
-        DATA = 3
+        DATA = 2
         QUIT = 99
 
     def __init__(self, hostname, port):
         self.state = self.State.HELO
         self.server = (hostname, port)
         with socket(AF_INET, SOCK_DGRAM) as client_socket:
-            client_socket.bind(self.server)
             self.cli_socket = client_socket
 
     def send(self, cmd: str):
@@ -333,8 +331,8 @@ class Client:
 
 
 def main():
-    hostname = None
-    port = -1
+    hostname = None  # server hostname
+    port = -1  # server port
     if len(sys.argv) > 2:
         try:
             hostname = sys.argv[1]
