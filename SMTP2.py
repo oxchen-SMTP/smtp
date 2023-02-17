@@ -11,7 +11,8 @@ from socket import *
 import re
 import logging
 
-logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
+# logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
 """
 Checklist:
@@ -190,9 +191,11 @@ class Client:
             self.send(f"HELO cs.unc.edu\n")
 
         to_stream = iter(to)
+        logging.debug(list(to_stream))
         while True:
             # TODO: review SMTP and socket error handling + connection closing
             try:
+                logging.debug()
                 match self.state:
                     case self.State.FROM:
                         # command MAIL FROM:
@@ -292,6 +295,7 @@ class Client:
 
         message = response.decode()
         code = self.parse_code(message)
+        logging.debug(f"{expected_code=}, {code=}, {next_state=}")
 
         if code != expected_code:
             self.error(message)
