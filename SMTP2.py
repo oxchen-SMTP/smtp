@@ -34,67 +34,6 @@ def debug(message: str):
         sys.stderr.write(f"{message}" + "\n" if message[-1] != "\n" else "")
 
 
-class ResponseParser:
-    def __init__(self, message: str):
-        self.message = message
-
-    def parse_code(self) -> int:
-        match = re.match(r"^(\d{3})\s+\n$", self.message)
-        if not match:
-            return -1
-        return int(match.group(1))
-
-    # def put_next(self):
-    #     try:
-    #         self.next = next(self.stream)
-    #     except StopIteration:
-    #         self.next = ""
-    #
-    # def consume(self, s: str):
-    #     for c in s:
-    #         if self.next != c:
-    #             return False
-    #         self.put_next()
-    #     return True
-    #
-    # def parse_code(self) -> int:
-    #     code = self.resp_number()
-    #     if self.whitespace() and self.arbitrary() and self.crlf():
-    #         return code
-    #     return -1
-    #
-    # def resp_number(self):
-    #     if self.consume("22"):
-    #         if self.consume("0"):
-    #             return 220
-    #         return 221
-    #     for num in ["250", "354"]:
-    #         if self.consume(num):
-    #             return int(num)
-    #     if not self.consume("50"):
-    #         return -1
-    #     for num in ["0", "1", "3"]:
-    #         if self.consume(num):
-    #             return int("50" + num)
-    #
-    # def whitespace(self):
-    #     if self.next not in (" ", "\t"):
-    #         return False
-    #
-    #     self.put_next()
-    #     self.whitespace()
-    #     return True
-    #
-    # def arbitrary(self):
-    #     while self.next != "\n":
-    #         self.put_next()
-    #
-    #     return True
-    #
-    # def crlf(self):
-    #     return self.next == "\n"
-
-
 class PathParser:
     SPECIAL = ("<", ">", "(", ")", "[", "]", "\\", ".", ",", ";", ":", "@", "\"")
     SP = (" ", "\t")
@@ -334,6 +273,13 @@ class Client:
         # TODO: handle SMTP error
         print(f"Encountered an SMTP error: {repr(msg)}", end="")
 
+    @staticmethod
+    def parse_code(message: str) -> int:
+        match = re.match(r"^(\d{3})\s+\n$", message)
+        if not match:
+            return -1
+        return int(match.group(1))
+
     def react_to_response(self, expected_code: int, next_state: State = State.QUIT) -> bool:
         try:
             response = self.cli_socket.recv(1024)
@@ -342,10 +288,9 @@ class Client:
             return False
 
         message = response.decode()
-        code = ResponseParser(message).parse_code()
+        code = self.parse_code(message)
 
         if code != expected_code:
-            # self.quit()
             self.error(message)
         else:
             self.state = next_state
