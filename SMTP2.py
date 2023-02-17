@@ -213,11 +213,16 @@ class Client:
         TO = 1
         DATA = 2
         QUIT = 99
+        ERROR = 100
 
     def __init__(self, hostname, port):
         self.state = self.State.HELO
         self.server = (hostname, port)
-        self.cli_socket = socket(AF_INET, SOCK_STREAM)
+        try:
+            self.cli_socket = socket(AF_INET, SOCK_STREAM)
+            self.cli_socket.connect(self.server)
+        except OSError:
+            self.state = self.State.ERROR
 
     def send(self, cmd: str):
         self.cli_socket.send(cmd.encode())
@@ -262,6 +267,8 @@ class Client:
                     case self.State.QUIT:
                         self.send("QUIT\n")
                         self.react_to_response(221)
+                        break
+                    case self.State.ERROR:
                         break
             except OSError as e:
                 print(f"Encountered a socket error: '{e}'")
