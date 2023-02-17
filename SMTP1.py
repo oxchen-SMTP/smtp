@@ -3,9 +3,10 @@ I certify that no unauthorized assistance has been received or given in the comp
 Signed: Oliver Chen
 Date: February 21, 2023
 """
-
+import os
+import re
 import sys
-from enum import Enum
+from enum import Enum, auto
 from socket import *
 import logging
 
@@ -30,11 +31,30 @@ Checklist
 
 
 class State(Enum):
-    HELO = -1
-    MAIL = 0
-    RCPT = 1
-    RCPTDATA = 2
-    DATABODY = 3
+    HELO = auto()
+    MAIL = auto()
+    RCPT = auto()
+    RCPTDATA = auto()
+    DATABODY = auto()
+    QUIT = auto()
+
+
+class Command(Enum):
+    # TODO: decide whether to include pattern in Command
+    def __init__(self, _: int, states: tuple[State], success_code: int, pattern: str):
+        self.states = states
+        self.success_code = success_code
+        self.pattern = pattern
+
+    HELO = auto(), State.HELO, 250, \
+        r"^HELO\s(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))\n$"
+    MAIL = auto(), State.MAIL, 250, \
+        r"^MAIL\s+FROM:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
+    RCPT = auto(), (State.RCPT, State.RCPTDATA), 250, \
+        r"^RCPT\s+TO:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
+    DATA = auto(), State.RCPTDATA, 354, r"^DATA\s*\n$"
+    QUIT = auto(), State.QUIT, 221, r"^QUIT\s*\n"
+    UNRECOGNIZED = auto(), tuple(State), -1, ""
 
 
 class SMTPParser:
@@ -44,12 +64,14 @@ class SMTPParser:
     DIGIT = "0123456789"
 
     def __init__(self, connection_socket: socket):
+        self.state = State.MAIL
+        self.forward_path_strs = set()  # set of unique forward paths
+
         self.stream = iter([])  # iterator for stdin
         self.nextc = ""  # 1 character lookahead
-        self.state = State.MAIL
         self.reverse_path_str = ""  # backward path
         self.get_reverse_path = False  # flag to insert to path_buffer
-        self.forward_path_strs = list()  # set of unique forward paths
+
         self.get_forward_path = False  # flag to insert to path_buffer
         self.path_buffer = ""  # temporary buffer for forward paths
         self.data = ""  # temporary buffer for data
@@ -61,54 +83,123 @@ class SMTPParser:
 
     def main(self):
         # self.__init__()
-        # TODO: replace stdin with socket in
-        # TODO: replace stdout with socket out
         send(self.conn_socket, f"220 {gethostname()}")
-        while True:
-            command = self.conn_socket.recv(1024).decode()
-            self.stream = iter(command)
-            self.putc()
+        while self.state != State.QUIT:
+            message = self.conn_socket.recv(1024).decode()
+            # self.stream = iter(message)
+            # self.putc()
             if self.state == State.DATABODY:
-                # TODO: review with new forward file requirements
-                res = self.read_data()
-                if res is not None:
-                    # found proper end of message
-                    if self.reading_data:
-                        print(self.code(501))
-                    else:
-                        fpath_to_strs = "\n".join([f"To: <{fpath}>" for fpath in self.forward_path_strs])
-                        for fpath in self.forward_path_strs:
-                            with open(f"./forward/{fpath}", "a+") as fp:
-                                fp.write(f"From: <{self.reverse_path_str}>\n")
-                                fp.write(fpath_to_strs + "\n")
-                                fp.write(res + "\n")
-                        print(self.code(250))
-                        self.forward_path_strs = []
-                        self.reverse_path_str = ""
-                        self.state = State.MAIL
-            else:
-                # TODO: handle HELO and QUIT
-                command, states, exit_code = self.recognize_cmd()
-
-                if self.state not in states:
-                    print(self.code(503))
+                # captures body in 0
+                re_match = re.match(r"^(.*\n)\.\n$", message)
+                if re_match:
+                    send(self.code(250, "OK"))
+                    body = re_match.group(0)
+                    for fpath in self.forward_path_strs:
+                        with open(os.path.join("./forward", fpath), "a+") as fp:
+                            fp.write(body)
+                    self.forward_path_strs = set()
                     self.state = State.MAIL
                 else:
-                    match command:
-                        case "MAIL":
-                            self.forward_path_strs = []
-                            self.state = State.RCPT
-                        case "RCPT":
-                            self.state = State.RCPTDATA
-                        case "DATA":
-                            self.state = State.DATABODY
-                        case _:
-                            self.state = State.MAIL
-                    print(exit_code)
-            break
-        if self.reading_data:
-            # reached EOF while still reading data
-            print(self.code(501))
+                    send(self.code(501))
+                # res = self.read_data()
+                # if res is not None:
+                #     # found proper end of message
+                #     if self.reading_data:
+                #         print(self.code(501))
+                #     else:
+                #         fpath_to_strs = "\n".join([f"To: <{fpath}>" for fpath in self.forward_path_strs])
+                #         for fpath in self.forward_path_strs:
+                #             with open(f"./forward/{fpath}", "a+") as fp:
+                #                 fp.write(f"From: <{self.reverse_path_str}>\n")
+                #                 fp.write(fpath_to_strs + "\n")
+                #                 fp.write(res + "\n")
+                #         print(self.code(250))
+                #         self.forward_path_strs = set()
+                #         self.reverse_path_str = ""
+                #         self.state = State.MAIL
+            else:
+                command = self.parse_cmd(message)
+                if self.state not in command.states:
+                    self.send(self.code(503))
+                    self.state = State.MAIL
+                else:
+                    if command == Command.UNRECOGNIZED:
+                        self.state = State.MAIL
+                    else:
+                        re_match = re.match(command.pattern, message)
+                        if re_match:
+                            match command:
+                                case Command.HELO:
+                                    # captures hostname/domain name in 0
+                                    client_hostname = re_match.group(0)
+                                    self.send(self.code(250, f"Hello {client_hostname} pleased to meet you"))
+                                    self.state = State.MAIL
+                                case Command.MAIL:
+                                    # captures local-part in 0, domain name in 1
+                                    self.send(self.code(250, f"OK"))
+                                    self.forward_path_strs = set()
+                                    self.state = State.RCPT
+                                case Command.RCPT:
+                                    # captures local-part in 0, domain name in 1
+                                    self.send(self.code(250, f"OK"))
+                                    domain = re_match.group(1)
+                                    self.forward_path_strs.add(domain)
+                                    self.state = State.RCPTDATA
+                                case Command.DATA:
+                                    self.send(self.code(354))
+                                    self.state = State.DATABODY
+                                case Command.QUIT:
+                                    self.send(self.code(221))
+                        else:
+                            self.send(self.code(501))
+
+                # command, states, exit_code = self.recognize_cmd()
+                #
+                # if self.state not in states:
+                #     print(self.code(503))
+                #     self.state = State.MAIL
+                # else:
+                #     match command:
+                #         case "MAIL":
+                #             self.forward_path_strs = []
+                #             self.state = State.RCPT
+                #         case "RCPT":
+                #             self.state = State.RCPTDATA
+                #         case "DATA":
+                #             self.state = State.DATABODY
+                #         case _:
+                #             self.state = State.MAIL
+                #     print(exit_code)
+
+    def send(self, s: str):
+        send(self.conn_socket, s)
+
+    @staticmethod
+    def parse_cmd(line: str) -> Command:
+        # HELO
+        if re.match(r"^HELO\s+", line):
+            return Command.HELO
+
+        # MAIL FROM
+        if re.match(r"^MAIL\s+FROM:", line):
+            return Command.MAIL
+
+        # RCPT TO
+        if re.match(r"^RCPT\s+TO:", line):
+            return Command.RCPT
+
+        # DATA
+        if re.match(r"^DATA\s*"):
+            return Command.DATA
+
+        # QUIT
+        if re.match(r"^QUIT\s*"):
+            return Command.QUIT
+
+        return Command.UNRECOGNIZED
+
+    def parse_regex(self, command: Command, line: str) -> re.Match:
+        return re.match(command.pattern, line)
 
     def putc(self):
         if self.get_forward_path or self.get_reverse_path:
@@ -381,6 +472,7 @@ def send(sock: socket, s: str):
 def main():
     port = -1
     # TODO: proper behavior if invalid port number
+    # TODO: proper behavior if non-protocol error
     try:
         port = int(sys.argv[1])
     except IndexError:
@@ -392,11 +484,17 @@ def main():
         serv_socket.bind(("", port))
         serv_socket.listen(1)
 
-        with serv_socket.accept() as (conn_socket, addr):
-            logging.debug("accepted connection, handshaking")
-            # conn_socket listens to cli_socket
-            parser = SMTPParser(conn_socket)
-            parser.main()
+        while True:
+            with serv_socket.accept() as (conn_socket, addr):
+                logging.debug("accepted connection, handshaking")
+                # conn_socket listens to cli_socket
+                try:
+                    parser = SMTPParser(conn_socket)
+                    parser.main()
+                except OSError as e:
+                    print(f"Encountered a socket error: {e}")
+                except Exception as e:
+                    print("Encountered an exception: {e}")
 
 
 
