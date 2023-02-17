@@ -166,10 +166,18 @@ class PathParser:
 
     def name(self):
         # <name> ::= <letter> <let-dig-str>
-        if self.let_dig_str():
-            return "name"
-
-        return ""
+        if self.nextc in self.ALPHA:
+            self.putc()
+            if self.nextc in self.ALPHA or self.nextc in self.DIGIT:
+                self.putc()
+                while self.nextc in self.ALPHA or self.nextc in self.DIGIT:
+                    self.putc()
+                return ""
+        return "let-dig-str"
+        # if self.let_dig_str():
+        #     return "name"
+        #
+        # return ""
 
     def letter(self):
         # <letter> ::= any one of the 52 alphabetic characters A through Z in upper case and a through z in lower case
