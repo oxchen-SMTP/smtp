@@ -21,6 +21,7 @@ Checklist:
     - (Receive and reconize a 250 code)
 - [x] Format the message data from the user and send it to the server
 - [x] Receive and recognize a 221 code after quitting
+- [ ] **TCP socket**
 """
 
 do_debug = False
@@ -51,14 +52,16 @@ class ResponseParser:
         return True
 
     def parse_code(self) -> int:
-        # TODO: review code parsing
         code = self.resp_number()
         if self.whitespace() and self.arbitrary() and self.crlf():
             return code
         return -1
 
     def resp_number(self):
-        # TODO: review code parsing
+        if self.consume("22"):
+            if self.consume("0"):
+                return 220
+            return 221
         for num in ["250", "354"]:
             if self.consume(num):
                 return int(num)
@@ -214,7 +217,7 @@ class Client:
     def __init__(self, hostname, port):
         self.state = self.State.HELO
         self.server = (hostname, port)
-        with socket(AF_INET, SOCK_DGRAM) as client_socket:
+        with socket(AF_INET, SOCK_STREAM) as client_socket:
             self.cli_socket = client_socket
 
     def send(self, cmd: str):
