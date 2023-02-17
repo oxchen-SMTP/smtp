@@ -6,6 +6,10 @@ Date: February 21, 2023
 
 import sys
 from enum import Enum
+from socket import *
+import logging
+
+logging.basicConfig(format='%(level)s%(message)s', level=logging.DEBUG)
 
 debug = False
 
@@ -39,7 +43,7 @@ class SMTPParser:
     ALPHA = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     DIGIT = "0123456789"
 
-    def __init__(self):
+    def __init__(self, connection_socket: socket):
         self.stream = iter([])  # iterator for stdin
         self.nextc = ""  # 1 character lookahead
         self.state = State.MAIL
@@ -53,13 +57,16 @@ class SMTPParser:
         self.reading_data = False  # flag activated while reading data
         self.valid_command = False
 
+        self.conn_socket = connection_socket
+
     def main(self):
-        self.__init__()
+        # self.__init__()
         # TODO: replace stdin with socket in
         # TODO: replace stdout with socket out
-        for line in sys.stdin:
-            print(line, end="")
-            self.stream = iter(line)
+        send(self.conn_socket, f"220 {gethostname()}")
+        while True:
+            command = self.conn_socket.recv(1024).decode()
+            self.stream = iter(command)
             self.putc()
             if self.state == State.DATABODY:
                 # TODO: review with new forward file requirements
@@ -80,9 +87,8 @@ class SMTPParser:
                         self.reverse_path_str = ""
                         self.state = State.MAIL
             else:
-                # TODO: handle HELO and
-                res = self.recognize_cmd()
-                command, states, exit_code = res
+                # TODO: handle HELO and QUIT
+                command, states, exit_code = self.recognize_cmd()
 
                 if self.state not in states:
                     print(self.code(503))
@@ -99,6 +105,7 @@ class SMTPParser:
                         case _:
                             self.state = State.MAIL
                     print(exit_code)
+            break
         if self.reading_data:
             # reached EOF while still reading data
             print(self.code(501))
@@ -114,11 +121,10 @@ class SMTPParser:
     @staticmethod
     def code(num: int, data: str = "") -> str:
         match num:
-            # TODO: maybe replace hostname input with field
             case 220:
-                return f"220 {data}.cs.unc.edu"
+                return f"220 {gethostname()}"
             case 221:
-                return f"221 {data} closing connection"
+                return f"221 {gethostname()} closing connection"
             case 250:
                 return f"250 {data}"
             case 354:
@@ -368,18 +374,30 @@ class SMTPParser:
         return self.code(354)
 
 
+def send(sock: socket, s: str):
+    sock.send(f"{s}\n".encode())
+
+
 def main():
     port = -1
     # TODO: proper behavior if invalid port number
     try:
         port = int(sys.argv[1])
     except IndexError:
-        sys.stderr.write("No port number given\n")
+        logging.debug("No port number given\n")
     except ValueError:
-        sys.stderr.write(f"Argument {sys.argv[1]} is not a valid port number\n")
+        logging.debug(f"Argument {sys.argv[1]} is not a valid port number\n")
 
-    parser = SMTPParser()
-    parser.main()
+    with socket(AF_INET, SOCK_DGRAM) as serv_socket:
+        serv_socket.bind(("", port))
+        serv_socket.listen(1)
+
+        with serv_socket.accept() as (conn_socket, addr):
+            logging.debug("accepted connection, handshaking")
+            # conn_socket listens to cli_socket
+            parser = SMTPParser(conn_socket)
+            parser.main()
+
 
 
 if __name__ == "__main__":
