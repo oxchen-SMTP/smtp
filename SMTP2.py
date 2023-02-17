@@ -9,6 +9,9 @@ import os
 from enum import Enum
 from socket import *
 import re
+import logging
+
+logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
 
 """
 Checklist:
@@ -166,7 +169,7 @@ class Client:
         try:
             self.cli_socket = socket(AF_INET, SOCK_STREAM)
             self.cli_socket.connect(self.server)
-            print(f"connected to {hostname}")
+            logging.info(f"connected to {hostname}")
         except OSError:
             self.state = self.State.ERROR
 
@@ -271,7 +274,7 @@ class Client:
     @staticmethod
     def error(msg: str):
         # TODO: handle SMTP error
-        print(f"Encountered an SMTP error: {repr(msg)}", end="")
+        print(f"Encountered an SMTP error: {repr(msg)}")
 
     @staticmethod
     def parse_code(message: str) -> int:
@@ -307,9 +310,9 @@ def main():
             hostname = sys.argv[1]
             port = int(sys.argv[2])
         except IndexError:
-            print("Not enough arguments, expected hostname followed by port number\n")
+            logging.debug("Not enough arguments, expected hostname followed by port number\n")
         except ValueError:
-            print(f"Argument {sys.argv[2]} is not a valid port number\n")
+            logging.debug(f"Argument {sys.argv[2]} is not a valid port number\n")
 
         client = Client(hostname, port)
         client.main()
