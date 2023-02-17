@@ -189,8 +189,9 @@ class PathParser:
 
     def let_dig(self):
         # <let-dig> ::= <letter> | <digit>
-        if self.letter() != "" and self.digit() != "":
-            return "let-dig"
+        if self.letter() != "":
+            if self.digit() != "":
+                return "let-dig"
         return ""
 
     def digit(self):
