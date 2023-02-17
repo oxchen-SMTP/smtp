@@ -8,6 +8,7 @@ import sys
 import os
 from enum import Enum
 from socket import *
+import re
 
 """
 Checklist:
@@ -35,58 +36,63 @@ def debug(message: str):
 
 class ResponseParser:
     def __init__(self, message: str):
-        self.stream = iter(message)
-        self.next = next(self.stream)
-
-    def put_next(self):
-        try:
-            self.next = next(self.stream)
-        except StopIteration:
-            self.next = ""
-
-    def consume(self, s: str):
-        for c in s:
-            if self.next != c:
-                return False
-            self.put_next()
-        return True
+        self.message = message
 
     def parse_code(self) -> int:
-        code = self.resp_number()
-        if self.whitespace() and self.arbitrary() and self.crlf():
-            return code
-        return -1
-
-    def resp_number(self):
-        if self.consume("22"):
-            if self.consume("0"):
-                return 220
-            return 221
-        for num in ["250", "354"]:
-            if self.consume(num):
-                return int(num)
-        if not self.consume("50"):
+        match = re.match(r"^(\d{3})\s+\n$", self.message)
+        if not match:
             return -1
-        for num in ["0", "1", "3"]:
-            if self.consume(num):
-                return int("50" + num)
+        return int(match.group(1))
 
-    def whitespace(self):
-        if self.next not in (" ", "\t"):
-            return False
-
-        self.put_next()
-        self.whitespace()
-        return True
-
-    def arbitrary(self):
-        while self.next != "\n":
-            self.put_next()
-
-        return True
-
-    def crlf(self):
-        return self.next == "\n"
+    # def put_next(self):
+    #     try:
+    #         self.next = next(self.stream)
+    #     except StopIteration:
+    #         self.next = ""
+    #
+    # def consume(self, s: str):
+    #     for c in s:
+    #         if self.next != c:
+    #             return False
+    #         self.put_next()
+    #     return True
+    #
+    # def parse_code(self) -> int:
+    #     code = self.resp_number()
+    #     if self.whitespace() and self.arbitrary() and self.crlf():
+    #         return code
+    #     return -1
+    #
+    # def resp_number(self):
+    #     if self.consume("22"):
+    #         if self.consume("0"):
+    #             return 220
+    #         return 221
+    #     for num in ["250", "354"]:
+    #         if self.consume(num):
+    #             return int(num)
+    #     if not self.consume("50"):
+    #         return -1
+    #     for num in ["0", "1", "3"]:
+    #         if self.consume(num):
+    #             return int("50" + num)
+    #
+    # def whitespace(self):
+    #     if self.next not in (" ", "\t"):
+    #         return False
+    #
+    #     self.put_next()
+    #     self.whitespace()
+    #     return True
+    #
+    # def arbitrary(self):
+    #     while self.next != "\n":
+    #         self.put_next()
+    #
+    #     return True
+    #
+    # def crlf(self):
+    #     return self.next == "\n"
 
 
 class PathParser:
@@ -325,11 +331,12 @@ class Client:
 
     @staticmethod
     def error(msg: str):
-        print(f"Encountered an SMTP error: '{msg}'")
+        # TODO: handle SMTP error
+        print(f"Encountered an SMTP error: {repr(msg)}", end="")
 
     def react_to_response(self, expected_code: int, next_state: State = State.QUIT) -> bool:
         try:
-            response, serv_addr = self.cli_socket.recv(1024)
+            response = self.cli_socket.recv(1024)
         except OSError as e:
             print(f"Encountered a socket error: {e}")
             return False
