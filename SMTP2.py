@@ -221,6 +221,7 @@ class Client:
         try:
             self.cli_socket = socket(AF_INET, SOCK_STREAM)
             self.cli_socket.connect(self.server)
+            print(f"connected to {hostname}")
         except OSError:
             self.state = self.State.ERROR
 
@@ -228,13 +229,16 @@ class Client:
         self.cli_socket.send(cmd.encode())
 
     def main(self):
+        if self.state == self.state.ERROR:
+            return
+
         msg_res = self.get_message()
         if msg_res is None:
             return
         from_, to, subj, msg = msg_res
 
         self.react_to_response(220, self.State.FROM)
-        if self.state != self.State.QUIT:
+        if self.state not in [self.State.QUIT, self.State.ERROR]:
             self.send(f"HELO cs.unc.edu\n")
 
         to_stream = iter(to)
@@ -346,16 +350,17 @@ def main():
     hostname = None  # server hostname
     port = -1  # server port
     if len(sys.argv) > 2:
+        # TODO: how to handle bad arguments
         try:
             hostname = sys.argv[1]
             port = int(sys.argv[2])
         except IndexError:
-            sys.stderr.write("Not enough arguments, expected hostname followed by port number\n")
+            print("Not enough arguments, expected hostname followed by port number\n")
         except ValueError:
-            sys.stderr.write(f"Argument {sys.argv[2]} is not a valid port number\n")
+            print(f"Argument {sys.argv[2]} is not a valid port number\n")
 
-    client = Client(hostname, port)
-    client.main()
+        client = Client(hostname, port)
+        client.main()
 
 
 if __name__ == '__main__':
