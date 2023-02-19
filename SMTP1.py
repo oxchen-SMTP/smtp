@@ -10,7 +10,7 @@ from enum import Enum, auto
 from socket import *
 import logging
 
-logging.basicConfig(format='%(level)s%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s%(message)s', level=logging.DEBUG)
 
 debug = False
 
