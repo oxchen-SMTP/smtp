@@ -45,14 +45,14 @@ class Command(Enum):
         self.success_code = success_code
         self.pattern = pattern
 
-    HELO = auto(), State.HELO, 250, \
+    HELO = auto(), (State.HELO, ), 250, \
         r"^HELO\s(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))\n$"
-    MAIL = auto(), State.MAIL, 250, \
+    MAIL = auto(), (State.MAIL, ), 250, \
         r"^MAIL\s+FROM:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
     RCPT = auto(), (State.RCPT, State.RCPTDATA), 250, \
         r"^RCPT\s+TO:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
-    DATA = auto(), State.RCPTDATA, 354, r"^DATA\s*\n$"
-    QUIT = auto(), State.QUIT, 221, r"^QUIT\s*\n"
+    DATA = auto(), (State.RCPTDATA, ), 354, r"^DATA\s*\n$"
+    QUIT = auto(), (State.QUIT, ), 221, r"^QUIT\s*\n"
     UNRECOGNIZED = auto(), tuple(State), -1, ""
 
 
