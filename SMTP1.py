@@ -69,28 +69,12 @@ class SMTPParser:
     def __init__(self, connection_socket: socket):
         self.state = State.MAIL
         self.forward_path_strs = set()  # set of unique forward paths
-
-        self.stream = iter([])  # iterator for stdin
-        self.nextc = ""  # 1 character lookahead
-        self.reverse_path_str = ""  # backward path
-        self.get_reverse_path = False  # flag to insert to path_buffer
-
-        self.get_forward_path = False  # flag to insert to path_buffer
-        self.path_buffer = ""  # temporary buffer for forward paths
-        self.data = ""  # temporary buffer for data
-        self.data_buffer = ""  # temporary buffer for detecting end of data message
-        self.reading_data = False  # flag activated while reading data
-        self.valid_command = False
-
         self.conn_socket = connection_socket
 
     def main(self):
-        # self.__init__()
         send(self.conn_socket, f"220 {gethostname()}")
         while self.state != State.QUIT:
             message = self.conn_socket.recv(1024).decode()
-            # self.stream = iter(message)
-            # self.putc()
             if self.state == State.DATABODY:
                 # captures body in 0
                 re_match = re.match(r"^(.*\n)\.\n$", message)
@@ -223,6 +207,7 @@ def main():
                 print(f"Encountered an exception: {e}")
             finally:
                 conn_socket.close()
+                logging.debug("closed connection with client")
 
 
 if __name__ == "__main__":
