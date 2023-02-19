@@ -10,7 +10,7 @@ from enum import Enum, auto
 from socket import *
 import logging
 
-logging.basicConfig(format='%(levelname)s%(message)s', level=logging.DEBUG)
+logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
 
 debug = False
 
@@ -211,16 +211,18 @@ def main():
         logging.debug("created server socket on port 15544")
 
         while True:
-            with serv_socket.accept() as (conn_socket, addr):
+            try:
+                conn_socket, addr = serv_socket.accept()
                 logging.debug("accepted connection, handshaking")
                 # conn_socket listens to cli_socket
-                try:
-                    parser = SMTPParser(conn_socket)
-                    parser.main()
-                except OSError as e:
-                    print(f"Encountered a socket error: {e}")
-                except Exception as e:
-                    print(f"Encountered an exception: {e}")
+                parser = SMTPParser(conn_socket)
+                parser.main()
+            except OSError as e:
+                print(f"Encountered a socket error: {e}")
+            except Exception as e:
+                print(f"Encountered an exception: {e}")
+            finally:
+                conn_socket.close()
 
 
 if __name__ == "__main__":
