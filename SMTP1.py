@@ -205,7 +205,7 @@ def main():
     except ValueError:
         logging.debug(f"Argument {sys.argv[1]} is not a valid port number\n")
 
-    with socket(AF_INET, SOCK_DGRAM) as serv_socket:
+    with socket(AF_INET, SOCK_STREAM) as serv_socket:
         serv_socket.bind(("", port))
         serv_socket.listen(1)
         logging.debug("created server socket on port 15544")
