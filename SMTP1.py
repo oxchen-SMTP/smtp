@@ -45,14 +45,14 @@ class Command(Enum):
         self.success_code = success_code
         self.pattern = pattern
 
-    HELO = auto(), (State.HELO, ), 250, \
+    HELO = auto(), (State.HELO,), 250, \
         r"^HELO\s(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))\n$"
-    MAIL = auto(), (State.MAIL, ), 250, \
+    MAIL = auto(), (State.MAIL,), 250, \
         r"^MAIL\s+FROM:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
     RCPT = auto(), (State.RCPT, State.RCPTDATA), 250, \
         r"^RCPT\s+TO:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
-    DATA = auto(), (State.RCPTDATA, ), 354, r"^DATA\s*\n$"
-    QUIT = auto(), (State.QUIT, ), 221, r"^QUIT\s*\n"
+    DATA = auto(), (State.RCPTDATA,), 354, r"^DATA\s*\n$"
+    QUIT = auto(), (State.QUIT,), 221, r"^QUIT\s*\n"
     UNRECOGNIZED = auto(), tuple(State), -1, ""
 
 
@@ -187,29 +187,31 @@ def main():
         port = int(sys.argv[1])
     except IndexError:
         logging.debug("No port number given\n")
+        return
     except ValueError:
         logging.debug(f"Argument {sys.argv[1]} is not a valid port number\n")
+        return
 
-    if not 1 <= port <= 65536:
-        with socket(AF_INET, SOCK_STREAM) as serv_socket:
-            serv_socket.bind(("", port))
-            serv_socket.listen(1)
-            logging.debug(f"created server socket on port {port}")
+    with socket(AF_INET, SOCK_STREAM) as serv_socket:
+        serv_socket.bind(("", port))
+        serv_socket.listen(1)
+        logging.debug(f"created server socket on port {port}")
 
-            while True:
-                try:
-                    conn_socket, addr = serv_socket.accept()
-                    logging.debug("accepted connection, handshaking")
-                    # conn_socket listens to cli_socket
-                    parser = SMTPParser(conn_socket)
-                    parser.main()
-                except OSError as e:
-                    print(f"Encountered a socket error: {e}")
-                # except Exception as e:
-                #     print(f"Encountered an exception: {e}")
-                finally:
-                    conn_socket.close()
-                    logging.debug("closed connection with client")
+        while True:
+            try:
+                conn_socket, addr = serv_socket.accept()
+                logging.debug("accepted connection, handshaking")
+                # conn_socket listens to cli_socket
+                parser = SMTPParser(conn_socket)
+                parser.main()
+            except OSError as e:
+                print(f"Encountered a socket error: {e}")
+            # except Exception as e:
+            #     print(f"Encountered an exception: {e}")
+            finally:
+                conn_socket.close()
+                logging.debug("closed connection with client")
+
 
 if __name__ == "__main__":
     main()
