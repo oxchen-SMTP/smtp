@@ -181,10 +181,12 @@ class Client:
 
     def main(self):
         if self.state == self.state.ERROR:
+            self.cli_socket.close()
             return
 
         msg_res = self.get_message()
         if msg_res is None:
+            self.cli_socket.close()
             return
         from_, to, subj, msg = msg_res
 
