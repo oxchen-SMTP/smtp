@@ -72,14 +72,14 @@ class SMTPParser:
         self.conn_socket = connection_socket
 
     def main(self):
-        send(self.conn_socket, f"220 {gethostname()}")
+        self.send(f"220 {gethostname()}")
         while self.state != State.QUIT:
             message = self.conn_socket.recv(1024).decode()
             if self.state == State.DATABODY:
                 # captures body in 0
                 re_match = re.match(r"^(.*\n)\.\n$", message)
                 if re_match:
-                    send(self.code(250, "OK"))
+                    self.send(self.code(250, "OK"))
                     body = re_match.group(0)
                     for fpath in self.forward_path_strs:
                         with open(os.path.join("./forward", fpath), "a+") as fp:
@@ -90,6 +90,7 @@ class SMTPParser:
                     self.send(self.code(501))
             else:
                 command = self.parse_cmd(message)
+                logging.debug(command)
                 if self.state not in command.states:
                     self.send(self.code(503))
                     self.state = State.MAIL
@@ -144,11 +145,11 @@ class SMTPParser:
             return Command.RCPT
 
         # DATA
-        if re.match(r"^DATA\s*"):
+        if re.match(r"^DATA\s*", line):
             return Command.DATA
 
         # QUIT
-        if re.match(r"^QUIT\s*"):
+        if re.match(r"^QUIT\s*", line):
             return Command.QUIT
 
         return Command.UNRECOGNIZED
@@ -192,7 +193,7 @@ def main():
     with socket(AF_INET, SOCK_STREAM) as serv_socket:
         serv_socket.bind(("", port))
         serv_socket.listen(1)
-        logging.debug("created server socket on port 15544")
+        logging.debug(f"created server socket on port {port}")
 
         while True:
             try:
@@ -203,12 +204,11 @@ def main():
                 parser.main()
             except OSError as e:
                 print(f"Encountered a socket error: {e}")
-            except Exception as e:
-                print(f"Encountered an exception: {e}")
+            # except Exception as e:
+            #     print(f"Encountered an exception: {e}")
             finally:
                 conn_socket.close()
                 logging.debug("closed connection with client")
-
 
 if __name__ == "__main__":
     main()
