@@ -67,7 +67,7 @@ class SMTPParser:
     DIGIT = "0123456789"
 
     def __init__(self, connection_socket: socket):
-        self.state = State.MAIL
+        self.state = State.HELO
         self.forward_path_strs = set()  # set of unique forward paths
         self.conn_socket = connection_socket
 
@@ -132,6 +132,7 @@ class SMTPParser:
 
     @staticmethod
     def parse_cmd(line: str) -> Command:
+        logging.debug(f"{line=}")
         # HELO
         if re.match(r"^HELO\s+", line):
             return Command.HELO
