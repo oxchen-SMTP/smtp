@@ -6,7 +6,7 @@ Date: February 21, 2023
 
 import sys
 import os
-from enum import Enum
+from enum import Enum, auto
 from socket import *
 import re
 import logging
@@ -26,7 +26,7 @@ Checklist:
     - (Receive and reconize a 250 code)
 - [x] Format the message data from the user and send it to the server
 - [x] Receive and recognize a 221 code after quitting
-- [ ] **TCP socket**
+- [x] **TCP socket**
 """
 
 do_debug = False
@@ -157,12 +157,12 @@ class PathParser:
 
 class Client:
     class State(Enum):
-        HELO = -1
-        FROM = 0
-        TO = 1
-        DATA = 2
-        QUIT = 99
-        ERROR = 100
+        HELO = auto()
+        FROM = auto()
+        TO = auto()
+        DATA = auto()
+        QUIT = auto()
+        ERROR = auto()
 
     def __init__(self, hostname, port):
         self.state = self.State.HELO
@@ -173,9 +173,11 @@ class Client:
             logging.debug(f"connected to {hostname}")
         except OSError:
             self.state = self.State.ERROR
+        finally:
+            self.cli_socket.close()
 
-    def send(self, cmd: str):
-        self.cli_socket.send(cmd.encode())
+    def send(self, s: str):
+        self.cli_socket.send(s.encode())
 
     def main(self):
         if self.state == self.state.ERROR:
@@ -188,7 +190,7 @@ class Client:
 
         self.react_to_response(220, self.State.FROM)
         if self.state not in [self.State.QUIT, self.State.ERROR]:
-            self.send(f"HELO cs.unc.edu\n")
+            self.send(f"HELO {gethostname()}\n")
 
         to_stream = iter(to)
         while True:
