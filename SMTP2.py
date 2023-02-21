@@ -11,8 +11,8 @@ from socket import *
 import re
 import logging
 
-# logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
-logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+# logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+logging.basicConfig(format="%(message)s", level=logging.INFO)
 
 """
 Checklist:
@@ -38,123 +38,6 @@ def debug(message: str):
         sys.stderr.write(f"{message}" + "\n" if message[-1] != "\n" else "")
 
 
-class PathParser:
-    SPECIAL = ("<", ">", "(", ")", "[", "]", "\\", ".", ",", ";", ":", "@", "\"")
-    SP = (" ", "\t")
-    ALPHA = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    DIGIT = "0123456789"
-
-    def __init__(self, path: str):
-        self.stream = iter(path)
-        self.nextc = next(self.stream)
-
-    def parse_path(self) -> str:
-        if self.local_part() != "":
-            return "Invalid local name"
-
-        if not self.consume("@"):
-            return "Missing @ in path"
-
-        if self.domain() != "":
-            return "Invalid domain name"
-
-        return ""
-
-    def putc(self):
-        try:
-            self.nextc = next(self.stream)
-        except StopIteration:
-            self.nextc = ""
-
-    def consume(self, s: str):
-        for c in s:
-            if self.nextc != c:
-                return False
-            self.putc()
-        return True
-
-    def local_part(self):
-        # <local-part> ::= <string>
-        return self.string()
-
-    def string(self):
-        # <string> ::= <char> | <char> <string>
-        res = self.char()
-        if res != "":
-            return "string"
-
-        self.string()
-
-        return ""
-
-    def char(self):
-        # <char> ::= any one of the printable ASCII characters, but not any of <special> or <SP>
-        if self.nextc in self.SPECIAL or self.nextc in self.SP:
-            return "char"
-        self.putc()
-        return ""
-
-    def domain(self):
-        # <domain> ::= <element> | <element> "." <domain>
-        res = self.element()
-        if res != "":
-            return res
-
-        if self.nextc == ".":
-            self.consume(".")
-            return self.domain()  # this element is fine, next one also needs to be
-
-        return ""
-
-    def element(self):
-        # <element> ::= <letter> | <name>
-        if self.letter() != "":
-            return "element"
-
-        self.name()
-
-        return ""
-
-    def name(self):
-        # <name> ::= <letter> <let-dig-str>
-        if self.let_dig_str():
-            return "name"
-
-        return ""
-
-    def letter(self):
-        # <letter> ::= any one of the 52 alphabetic characters A through Z in upper case and a through z in lower case
-        if self.nextc in self.ALPHA:
-            self.putc()
-            return ""
-        return "letter"
-
-    def let_dig_str(self):
-        # <let-dig-str> ::= <let-dig> | <let-dig> <let-dig-str>
-        if self.let_dig() != "":
-            return "let-dig-str"
-
-        if self.nextc == "":
-            return ""
-
-        self.let_dig_str()
-
-        return ""
-
-    def let_dig(self):
-        # <let-dig> ::= <letter> | <digit>
-        if self.letter() != "" and self.digit() != "":
-            return "let-dig"
-        return ""
-
-    def digit(self):
-        # <digit> ::= any one of the ten digits 0 through 9
-        if self.nextc in self.DIGIT:
-            self.putc()
-            return ""
-        return "digit"
-
-
 class Client:
     class State(Enum):
         HELO = auto()
@@ -174,9 +57,9 @@ class Client:
         except OSError:
             self.state = self.State.ERROR
 
-    def send(self, cmd: str):
-        logging.debug(f"sending: {cmd}".rstrip())
-        self.cli_socket.send(cmd.encode())
+    def send(self, s: str):
+        logging.debug(f"sending: {s}".rstrip())
+        self.cli_socket.send(s.encode())
 
     def main(self):
         if self.state == self.state.ERROR:
@@ -233,13 +116,32 @@ class Client:
         self.cli_socket.close()
 
     @staticmethod
+    def parse_path(path) -> str:
+        buf = path
+        local_part = re.match(r"^[^<>()[\]@.,;:\\\"\s]+", buf)
+        if not local_part:
+            return "Invalid local name"
+        buf = buf.lstrip(local_part.group(0))
+
+        at_sign = re.match(r"^@", buf)
+        if not at_sign:
+            return "Missing @"
+        buf = buf.lstrip("@")
+
+        domain = re.match(r"^([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*)$", buf)
+        if not domain:
+            return "Invalid domain name"
+
+        return ""
+
+    @staticmethod
     def get_message() -> (str, list[str], str, str):
         try:
             # Prompt From:
             from_ = None
             while from_ is None:
                 path = input("From:\n")
-                res = PathParser(path).parse_path()
+                res = Client.parse_path(path)
                 if res != "":
                     print(res)
                 else:
@@ -248,9 +150,9 @@ class Client:
             # Prompt To:
             to = None
             while not to:
-                paths = input("To:\n").split(", \t")
+                paths = re.split(r",[ \t]*", input("To:\n"))
                 for p in paths:
-                    res = PathParser(p).parse_path()
+                    res = Client.parse_path(p)
                     if res != "":
                         print(res)
                         continue
@@ -261,11 +163,13 @@ class Client:
 
             # Prompt Message:
             print("Message:")
-            msg = ""
-            line = ""
+            line = None
+            lines = []
             while line != ".":
-                msg += line
+                if line is not None:
+                    lines.append(line)
                 line = input("")
+            msg = "\n".join(lines)
 
             return from_, to, subj, msg
         except EOFError:
@@ -315,12 +219,17 @@ def main():
         try:
             hostname = sys.argv[1]
             port = int(sys.argv[2])
-            client = Client(hostname, port)
-            client.main()
+
         except IndexError:
             logging.debug("Not enough arguments, expected hostname followed by port number\n")
         except ValueError:
             logging.debug(f"Argument {sys.argv[2]} is not a valid port number\n")
+
+        if port < 1 or port > 65536:
+            print(f"Port must be 1-65536")
+            return
+        client = Client(hostname, port)
+        client.main()
 
 
 if __name__ == '__main__':
