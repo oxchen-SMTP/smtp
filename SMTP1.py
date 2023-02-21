@@ -10,7 +10,8 @@ from enum import Enum, auto
 from socket import *
 import logging
 
-logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+# logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
+logging.basicConfig(format="%(message)s", level=logging.INFO)
 
 debug = False
 
@@ -46,7 +47,8 @@ class Command(Enum):
         self.pattern = pattern
 
     HELO = auto(), (State.HELO,), 250, \
-        r"^HELO\s(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))\n$"
+        r"^HELO\s+(\S*)\n$"
+    # r"^HELO\s+(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))\n$"
     MAIL = auto(), (State.MAIL,), 250, \
         r"^MAIL\s+FROM:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
     RCPT = auto(), (State.RCPT, State.RCPTDATA), 250, \
@@ -195,7 +197,7 @@ def main():
 
     if port < 1 or port > 65536:
         logging.debug(f"Invalid port: {port}")
-    with socket(AF_INET, SOCK_STREAM) as serv_socket: 
+    with socket(AF_INET, SOCK_STREAM) as serv_socket:
         serv_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         serv_socket.bind(("", port))
         serv_socket.listen(1)
