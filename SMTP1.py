@@ -45,14 +45,14 @@ class Command(Enum):
         self.success_code = success_code
         self.pattern = pattern
 
-    HELO = auto(), (State.HELO, ), 250, \
+    HELO = auto(), (State.HELO,), 250, \
         r"^HELO\s(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))\n$"
-    MAIL = auto(), (State.MAIL, ), 250, \
+    MAIL = auto(), (State.MAIL,), 250, \
         r"^MAIL\s+FROM:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
     RCPT = auto(), (State.RCPT, State.RCPTDATA), 250, \
         r"^RCPT\s+TO:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
-    DATA = auto(), (State.RCPTDATA, ), 354, r"^DATA\s*\n$"
-    QUIT = auto(), (State.QUIT, ), 221, r"^QUIT\s*\n"
+    DATA = auto(), (State.RCPTDATA,), 354, r"^DATA\s*\n$"
+    QUIT = auto(), (State.QUIT,), 221, r"^QUIT\s*\n"
     UNRECOGNIZED = auto(), tuple(State), -1, ""
 
 
@@ -67,7 +67,7 @@ class SMTPParser:
     DIGIT = "0123456789"
 
     def __init__(self, connection_socket: socket):
-        self.state = State.MAIL
+        self.state = State.HELO
         self.forward_path_strs = set()  # set of unique forward paths
         self.conn_socket = connection_socket
 
@@ -190,6 +190,8 @@ def main():
     except ValueError:
         logging.debug(f"Argument {sys.argv[1]} is not a valid port number\n")
 
+    if port < 1 or port > 65536:
+        logging.debug(f"Invalid port: {port}")
     with socket(AF_INET, SOCK_STREAM) as serv_socket:
         serv_socket.bind(("", port))
         serv_socket.listen(1)
@@ -209,6 +211,7 @@ def main():
             finally:
                 conn_socket.close()
                 logging.debug("closed connection with client")
+
 
 if __name__ == "__main__":
     main()

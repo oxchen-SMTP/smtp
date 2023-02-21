@@ -6,7 +6,7 @@ Date: February 21, 2023
 
 import sys
 import os
-from enum import Enum
+from enum import Enum, auto
 from socket import *
 import re
 import logging
@@ -157,12 +157,12 @@ class PathParser:
 
 class Client:
     class State(Enum):
-        HELO = -1
-        FROM = 0
-        TO = 1
-        DATA = 2
-        QUIT = 99
-        ERROR = 100
+        HELO = auto()
+        FROM = auto()
+        TO = auto()
+        DATA = auto()
+        QUIT = auto()
+        ERROR = auto()
 
     def __init__(self, hostname, port):
         self.state = self.State.HELO
@@ -188,7 +188,7 @@ class Client:
 
         self.react_to_response(220, self.State.FROM)
         if self.state not in [self.State.QUIT, self.State.ERROR]:
-            self.send(f"HELO cs.unc.edu\n")
+            self.send(f"HELO {gethostname()}\n")
 
         to_stream = iter(to)
         while True:
@@ -314,13 +314,12 @@ def main():
         try:
             hostname = sys.argv[1]
             port = int(sys.argv[2])
+            client = Client(hostname, port)
+            client.main()
         except IndexError:
             logging.debug("Not enough arguments, expected hostname followed by port number\n")
         except ValueError:
             logging.debug(f"Argument {sys.argv[2]} is not a valid port number\n")
-
-        client = Client(hostname, port)
-        client.main()
 
 
 if __name__ == '__main__':
