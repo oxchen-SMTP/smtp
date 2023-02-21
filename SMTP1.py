@@ -52,7 +52,7 @@ class Command(Enum):
     RCPT = auto(), (State.RCPT, State.RCPTDATA), 250, \
         r"^RCPT\s+TO:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
     DATA = auto(), (State.RCPTDATA,), 354, r"^DATA\s*\n$"
-    QUIT = auto(), (State.QUIT,), 221, r"^QUIT\s*\n"
+    QUIT = auto(), tuple(State), 221, r"^QUIT\s*\n"
     UNRECOGNIZED = auto(), tuple(State), -1, ""
 
 
@@ -74,10 +74,12 @@ class SMTPParser:
     def main(self):
         self.send(f"220 {gethostname()}")
         while self.state != State.QUIT:
+            logging.debug(f"{self.state=}")
             message = self.conn_socket.recv(1024).decode()
+            logging.debug(f"received: {message}".rstrip())
             if self.state == State.DATABODY:
                 # captures body in 0
-                re_match = re.match(r"^(.*\n)\.\n$", message)
+                re_match = re.match(r"^(.*\n)*\.\n", message)
                 if re_match:
                     self.send(self.code(250, "OK"))
                     body = re_match.group(0)
@@ -103,19 +105,19 @@ class SMTPParser:
                         if re_match:
                             match command:
                                 case Command.HELO:
-                                    # captures hostname/domain name in 0
-                                    client_hostname = re_match.group(0)
+                                    # captures hostname/domain name in 1
+                                    client_hostname = re_match.group(1)
                                     self.send(self.code(250, f"Hello {client_hostname} pleased to meet you"))
                                     self.state = State.MAIL
                                 case Command.MAIL:
-                                    # captures local-part in 0, domain name in 1
+                                    # captures local-part in 1, domain name in 2
                                     self.send(self.code(250, f"OK"))
                                     self.forward_path_strs = set()
                                     self.state = State.RCPT
                                 case Command.RCPT:
-                                    # captures local-part in 0, domain name in 1
+                                    # captures local-part in 1, domain name in 2
                                     self.send(self.code(250, f"OK"))
-                                    domain = re_match.group(1)
+                                    domain = re_match.group(2)
                                     self.forward_path_strs.add(domain)
                                     self.state = State.RCPTDATA
                                 case Command.DATA:
@@ -128,6 +130,7 @@ class SMTPParser:
                             self.send(self.code(501))
 
     def send(self, s: str):
+        logging.debug(f"sending: {s}".rstrip())
         send(self.conn_socket, s)
 
     @staticmethod
@@ -192,7 +195,8 @@ def main():
 
     if port < 1 or port > 65536:
         logging.debug(f"Invalid port: {port}")
-    with socket(AF_INET, SOCK_STREAM) as serv_socket:
+    with socket(AF_INET, SOCK_STREAM) as serv_socket: 
+        serv_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         serv_socket.bind(("", port))
         serv_socket.listen(1)
         logging.debug(f"created server socket on port {port}")

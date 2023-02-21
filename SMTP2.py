@@ -12,7 +12,7 @@ import re
 import logging
 
 # logging.basicConfig(filename='example.log', encoding='utf-8', level=logging.DEBUG)
-logging.basicConfig(format='%(message)s', level=logging.INFO)
+logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
 
 """
 Checklist:
@@ -175,6 +175,7 @@ class Client:
             self.state = self.State.ERROR
 
     def send(self, cmd: str):
+        logging.debug(f"sending: {cmd}".rstrip())
         self.cli_socket.send(cmd.encode())
 
     def main(self):
@@ -202,8 +203,8 @@ class Client:
                     case self.State.TO:
                         # command(s) RCPT TO:
                         try:
-                            n = next(to_stream)
-                            logging.debug(n)
+                            # n = next(to_stream)
+                            # logging.debug(n)
                             self.send(f"RCPT TO: <{next(to_stream)}>\n")
                             self.react_to_response(250, self.State.TO)
                         except StopIteration:
@@ -246,7 +247,7 @@ class Client:
 
             # Prompt To:
             to = None
-            while to is None:
+            while not to:
                 paths = input("To:\n").split(", \t")
                 for p in paths:
                     res = PathParser(p).parse_path()
@@ -274,10 +275,10 @@ class Client:
         # self.send("QUIT\n")
         self.state = self.State.QUIT
 
-    @staticmethod
-    def error(msg: str):
+    def error(self, msg: str):
         # TODO: handle SMTP error
         print(f"Encountered an SMTP error: {repr(msg)}")
+        self.state = self.State.ERROR
 
     @staticmethod
     def parse_code(message: str) -> int:
