@@ -134,41 +134,68 @@ class Client:
 
         return ""
 
-    @staticmethod
-    def get_message() -> (str, list[str], str, str):
+    def get_input(self, prompt: str):
+        print(prompt)
+        out = None
+        for line in sys.stdin:
+            out = line.rstrip("\n")
+            break
+        if out is None:
+            self.state = self.State.ERROR
+            return None
+        return out
+
+    def get_message(self) -> (str, list[str], str, str):
         try:
-            # Prompt From:
-            from_ = None
-            while from_ is None:
-                path = input("From:\n")
-                res = Client.parse_path(path)
-                if res != "":
-                    print(res)
-                else:
-                    from_ = path
-
-            # Prompt To:
-            to = None
-            while not to:
-                paths = re.split(r",[ \t]*", input("To:\n"))
-                for p in paths:
-                    res = Client.parse_path(p)
-                    if res != "":
-                        print(res)
-                        continue
-                to = paths
-
-            # Prompt Subject:
-            subj = input("Subject:\n")
-
-            # Prompt Message:
-            print("Message:")
-            line = None
+            state = 0
+            from_, to, subj, msg = "", "", "", ""
             lines = []
-            while line != ".":
-                if line is not None:
-                    lines.append(line)
-                line = input("")
+            for lin in sys.stdin:
+                line = lin.rstrip("\n")
+                match state:
+                    case 0:
+                        from_ = None
+                        while from_ is None:
+                            print("From:")
+                            res = Client.parse_path(line)
+                            if res != "":
+                                print(res)
+                            else:
+                                from_ = line
+                                state = 1
+                    case 1:
+                        to = None
+                        while to is None:
+                            print("To:")
+                            inc = False
+                            paths = re.split(r",[ \t]*", line)
+                            for p in paths:
+                                res = Client.parse_path(p)
+                                if res != "":
+                                    print(f"{res} in path {p}")
+                                    inc = True
+                            if not inc:
+                                to = paths
+                                state = 2
+                    case 2:
+                        print("Subject:")
+                        subj = line
+                        state = 3
+                    case 3:
+                        print("Message:")
+                        if line != ".":
+                            lines.append(line)
+                            state = 4
+                        else:
+                            state = -1
+                    case 4:
+                        if line != ".":
+                            lines.append(line)
+                        else:
+                            state = -1
+
+            if state != -1:
+                return None
             msg = "\n".join(lines)
 
             return from_, to, subj, msg
@@ -181,7 +208,7 @@ class Client:
 
     def error(self, msg: str):
         # TODO: handle SMTP error
-        print(f"Encountered an SMTP error: {repr(msg)}")
+        print(f"Encountered an SMTP error: {msg}".rstrip())
         self.state = self.State.ERROR
 
     @staticmethod
