@@ -140,9 +140,12 @@ class Server:
             return
         self.send(code(250, "OK"))
         body = re_match.group(1)
+        program_dir = os.path.abspath(os.path.dirname(__file__))
+        forward_dir = os.path.join(program_dir, "forward")
+        if not os.path.isdir(forward_dir):
+            os.mkdir(forward_dir)
         for fpath in self.forward_path_strs:
-            with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), "forward", fpath),
-                      "a+") as fp:
+            with open(os.path.join(forward_dir, fpath), "a+") as fp:
                 logging.debug(f"writing {body} to ./forward/{fpath}")
                 fp.write(body)
         self.forward_path_strs = set()
