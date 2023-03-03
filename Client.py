@@ -157,17 +157,6 @@ class Client:
 
         self.cli_socket.close()
 
-    def get_input(self, prompt: str):
-        print(prompt)
-        out = None
-        for line in sys.stdin:
-            out = line.rstrip("\n")
-            break
-        if out is None:
-            self.state = State.ERROR
-            return None
-        return out
-
     def error(self, msg: str):
         print(f"Encountered an SMTP error: {msg}".rstrip())
         self.state = State.ERROR
