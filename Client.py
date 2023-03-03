@@ -128,7 +128,8 @@ class Client:
             return "Missing @"
         buf = buf.lstrip("@")
 
-        domain = re.match(r"^([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*)$", buf)
+        domain = re.match(r"^((?:(?:[a-zA-Z][a-zA-Z0-9]*)+\.)*(?:[a-zA-Z][a-zA-Z0-9]*)+)[ \t]*\n?$",
+                          buf)
         if not domain:
             return "Invalid domain name"
 
@@ -147,55 +148,41 @@ class Client:
 
     def get_message(self) -> (str, list[str], str, str):
         try:
-            state = 0
-            from_, to, subj, msg = "", "", "", ""
-            lines = []
-            for lin in sys.stdin:
-                line = lin.rstrip("\n")
-                match state:
-                    case 0:
-                        from_ = None
-                        while from_ is None:
-                            print("From:")
-                            res = Client.parse_path(line)
-                            if res != "":
-                                print(res)
-                            else:
-                                from_ = line
-                                state = 1
-                    case 1:
-                        to = None
-                        while to is None:
-                            print("To:")
-                            inc = False
-                            paths = re.split(r",[ \t]*", line)
-                            for p in paths:
-                                res = Client.parse_path(p)
-                                if res != "":
-                                    print(f"{res} in path {p}")
-                                    inc = True
-                            if not inc:
-                                to = paths
-                                state = 2
-                    case 2:
-                        print("Subject:")
-                        subj = line
-                        state = 3
-                    case 3:
-                        print("Message:")
-                        if line != ".":
-                            lines.append(line)
-                            state = 4
-                        else:
-                            state = -1
-                    case 4:
-                        if line != ".":
-                            lines.append(line)
-                        else:
-                            state = -1
+            from_ = None
+            while from_ is None:
+                print("From:")
+                line = sys.stdin.readline()
+                res = Client.parse_path(line)
+                if res != "":
+                    print(res)
+                else:
+                    from_ = line.rstrip("\n")
 
-            if state != -1:
-                return None
+            to = None
+            while to is None:
+                print("To:")
+                paths = []
+                line = sys.stdin.readline()
+                for p in re.split(r",[ \t]*", line):
+                    res = Client.parse_path(p)
+                    if res != "":
+                        print(res)
+                        to = None
+                        break
+                    else:
+                        paths.append(p.rstrip("\n"))
+                        to = paths
+
+            print("Subject:")
+            subj = sys.stdin.readline().rstrip("\n")
+
+            print("Message:")
+            line = None
+            lines = []
+            while line != ".\n":
+                if line is not None:
+                    lines.append(line.rstrip("\n"))
+                line = sys.stdin.readline()
             msg = "\n".join(lines)
 
             return from_, to, subj, msg
