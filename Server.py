@@ -10,7 +10,6 @@ from enum import Enum, auto
 from socket import *
 import logging
 
-
 # logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 
@@ -27,7 +26,7 @@ Checklist
     - Receive and recognize a HELO command with text [client-hostname].cs.unc.edu
     - Send a 250 code with greeting text
 - [ ] Begin receiving SMTP commands
-- [ ] Upon QUIT command, respond to client with 221 [server-hostname] closing connection
+    - [ ] Upon QUIT command, respond to client with 221 [server-hostname] closing connection
 - [ ] Close socket to client and await connection from another client
 """
 
@@ -48,12 +47,11 @@ class Command(Enum):
         self.pattern = pattern
 
     HELO = auto(), (State.HELO,), 250, \
-        r"^HELO\s+(\S*)\n$"
-    # r"^HELO\s+(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))\n$"
+        r"^HELO\s+(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))\n$"
     MAIL = auto(), (State.MAIL,), 250, \
-        r"^MAIL\s+FROM:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
+        r"^MAIL FROM:[\t ]*<([^<>()[\]\\.,;:@\"]+)@((?:(?:[a-zA-Z][a-zA-Z0-9]*)+\.)*(?:[a-zA-Z][a-zA-Z0-9]*)+)>[\t ]*\n$"
     RCPT = auto(), (State.RCPT, State.RCPTDATA), 250, \
-        r"^RCPT\s+TO:\s*<([^<>()[\]\\.,;:@\"]+)@(([a-zA-Z][a-zA-Z0-9]*.)*([a-zA-Z][a-zA-Z0-9]*))>\s*\n$"
+        r"^RCPT TO:[\t ]*<([^<>()[\]\\.,;:@\"]+)@((?:(?:[a-zA-Z][a-zA-Z0-9]*)+\.)*(?:[a-zA-Z][a-zA-Z0-9]*)+)>[\t ]*\n$"
     DATA = auto(), (State.RCPTDATA,), 354, r"^DATA\s*\n$"
     QUIT = auto(), tuple(State), 221, r"^QUIT\s*\n"
     UNRECOGNIZED = auto(), tuple(State), -1, ""
@@ -73,22 +71,42 @@ class Server:
         self.state = State.HELO
         self.forward_path_strs = set()  # set of unique forward paths
         self.conn_socket = connection_socket
+        self.command_buffer = []
 
     def main(self):
         try:
             self.send(f"220 {gethostname()}")
             while self.state != State.QUIT:
                 logging.debug(f"{self.state=}")
-                message = self.conn_socket.recv(1024).decode()
-                logging.debug(f"received: {message}".rstrip())
+                if not self.command_buffer:
+                    recv = self.conn_socket.recv(1024).decode()
+                    if recv.rstrip("\n") == "":
+                        break
+                    logging.debug(f"{recv=}".rstrip("\n"))
+                    for m in re.findall("[^\n]*\n", recv):
+                        self.command_buffer.append(m)
+                        logging.debug(f"received: {m}".rstrip("\n"))
+                    # logging.debug(self.command_buffer)
+
+                # logging.debug(message)
                 if self.state == State.DATABODY:
                     # captures body in 1
-                    re_match = re.match(r"^((.*\n)*)\.\n", message)
+                    body = ""
+                    try:
+                        line = ""
+                        while line != "From:":
+                            body += line
+                            line = self.command_buffer.pop(0)
+                        body += line
+                    except IndexError:
+                        pass
+                    re_match = re.match(r"^((.*\n)*)\.\n", body)
                     if re_match:
                         self.send(self.code(250, "OK"))
                         body = re_match.group(1)
                         for fpath in self.forward_path_strs:
-                            with open(os.path.join("./forward", fpath), "a+") as fp:
+                            with open(os.path.join(os.path.abspath(os.path.dirname(__file__)), "forward", fpath),
+                                      "a+") as fp:
                                 logging.debug(f"writing {body} to ./forward/{fpath}")
                                 fp.write(body)
                         self.forward_path_strs = set()
@@ -96,6 +114,7 @@ class Server:
                     else:
                         self.send(self.code(501))
                 else:
+                    message = self.command_buffer.pop(0)
                     command = self.parse_cmd(message)
                     logging.debug(command)
                     if self.state not in command.states:
@@ -116,11 +135,13 @@ class Server:
                                         self.state = State.MAIL
                                     case Command.MAIL:
                                         # captures local-part in 1, domain name in 2
+                                        logging.debug(re_match.groups())
                                         self.send(self.code(250, f"OK"))
                                         self.forward_path_strs = set()
                                         self.state = State.RCPT
                                     case Command.RCPT:
                                         # captures local-part in 1, domain name in 2
+                                        logging.debug(re_match.groups())
                                         self.send(self.code(250, f"OK"))
                                         domain = re_match.group(2)
                                         self.forward_path_strs.add(domain)
@@ -136,8 +157,9 @@ class Server:
             self.send(self.code(221))
         except OSError as e:
             print(f"Encountered a socket error during execution of the program: {e}")
-        finally:
-            self.send(self.code(221))
+            # self.send(self.code(221))
+        # finally:
+        #     self.send(self.code(221))
 
     def send(self, s: str):
         logging.debug(f"sending: {s}".rstrip())
