@@ -5,7 +5,6 @@ Date: February 21, 2023
 """
 
 import sys
-import os
 from enum import Enum, auto
 from socket import *
 import re
@@ -13,29 +12,6 @@ import logging
 
 # logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
 logging.basicConfig(format="%(message)s", level=logging.INFO)
-
-"""
-Checklist:
-
-- [x] Take hostname and port number from command line arguments
-- [x] Prompt and receive email information from the user through the message
-- [x] Create a TCP socket to the SMTP server at the host and port number
-- [x] Handshake
-    - Receive and recognize a 220 code and confirm it's valid
-    - Reply with an SMTP HELO message (HELO <whitespace> <domain> <nullspace> <CRLF>)
-    - (Receive and reconize a 250 code)
-- [x] Format the message data from the user and send it to the server
-- [x] Receive and recognize a 221 code after quitting
-- [ ] **TCP socket**
-"""
-
-do_debug = False
-
-
-def debug(message: str):
-    global do_debug
-    if do_debug:
-        sys.stderr.write(f"{message}" + "\n" if message[-1] != "\n" else "")
 
 
 class Client:
@@ -76,7 +52,6 @@ class Client:
 
         to_stream = iter(to)
         while True:
-            # TODO: review SMTP and socket error handling + connection closing
             try:
                 match self.state:
                     case self.State.FROM:
@@ -86,8 +61,6 @@ class Client:
                     case self.State.TO:
                         # command(s) RCPT TO:
                         try:
-                            # n = next(to_stream)
-                            # logging.debug(n)
                             self.send(f"RCPT TO: <{next(to_stream)}>\n")
                             self.react_to_response(250, self.State.TO)
                         except StopIteration:
@@ -194,7 +167,6 @@ class Client:
         self.state = self.State.QUIT
 
     def error(self, msg: str):
-        # TODO: handle SMTP error
         print(f"Encountered an SMTP error: {msg}".rstrip())
         self.state = self.State.ERROR
 
@@ -229,7 +201,6 @@ def main():
     hostname = None  # server hostname
     port = -1  # server port
     if len(sys.argv) > 2:
-        # TODO: how to handle bad arguments
         try:
             hostname = sys.argv[1]
             port = int(sys.argv[2])

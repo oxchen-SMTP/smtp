@@ -13,23 +13,6 @@ import logging
 # logging.basicConfig(format='%(levelname)s: %(message)s', level=logging.DEBUG)
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 
-debug = False
-
-"""
-Checklist
-
-- [x] Get port number from arguments
-- [ ] Establish and accept a connection with the client
-- [ ] Create a listening socket on the specified port number
-- [ ] Handshake
-    - Send a 220 code with text [server-hostname].cs.unc.edu
-    - Receive and recognize a HELO command with text [client-hostname].cs.unc.edu
-    - Send a 250 code with greeting text
-- [ ] Begin receiving SMTP commands
-    - [ ] Upon QUIT command, respond to client with 221 [server-hostname] closing connection
-- [ ] Close socket to client and await connection from another client
-"""
-
 
 class State(Enum):
     HELO = auto()
@@ -86,9 +69,6 @@ class Server:
                     for m in re.findall("[^\n]*\n", recv):
                         self.command_buffer.append(m)
                         logging.debug(f"received: {m}".rstrip("\n"))
-                    # logging.debug(self.command_buffer)
-
-                # logging.debug(message)
                 if self.state == State.DATABODY:
                     # captures body in 1
                     body = ""
@@ -157,9 +137,6 @@ class Server:
             self.send(self.code(221))
         except OSError as e:
             print(f"Encountered a socket error during execution of the program: {e}")
-            # self.send(self.code(221))
-        # finally:
-        #     self.send(self.code(221))
 
     def send(self, s: str):
         logging.debug(f"sending: {s}".rstrip())
@@ -207,17 +184,9 @@ class Server:
             case 503:
                 return "503 Bad sequence of commands"
 
-    @staticmethod
-    def error(token: str) -> str:
-        if debug:
-            print(f"error while parsing {token=}")
-        return f"ERROR -- {token}"
-
 
 def main():
     port = -1
-    # TODO: proper behavior if invalid port number
-    # TODO: proper behavior if non-protocol error
     try:
         port = int(sys.argv[1])
     except IndexError:
@@ -244,8 +213,6 @@ def main():
                         parser.main()
                     except OSError as e:
                         print(f"Encountered an error while establishing the connection socket: {e}")
-                    # except Exception as e:
-                    #     print(f"Encountered an exception: {e}")
                     finally:
                         conn_socket.close()
                         logging.debug("closed connection with client")
